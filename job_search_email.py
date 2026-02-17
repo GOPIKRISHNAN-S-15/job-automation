@@ -1,6 +1,10 @@
-import os, smtplib, requests, datetime
+import os
+import smtplib
+import requests
+import datetime
 from email.message import EmailMessage
 
+# ===== ENV VARIABLES =====
 APP_ID = os.getenv("ADZUNA_APP_ID")
 APP_KEY = os.getenv("ADZUNA_APP_KEY")
 
@@ -12,22 +16,38 @@ SMTP_PASS = os.getenv("EMAIL_SMTP_PASS")
 EMAIL_TO = os.getenv("EMAIL_TO")
 EMAIL_FROM = os.getenv("EMAIL_FROM")
 
+# ===== SEARCH SETTINGS =====
 country = "in"
-what = "entry level data analyst OR junior data analyst OR data analytics intern"
 
-def fetch_jobs():
+roles = [
+    "data analyst",
+    "data analyst intern",
+    "full stack developer",
+    "full stack developer intern",
+    "python developer",
+    "python developer intern",
+    "java developer",
+    "java developer intern"
+]
+
+# ===== FETCH JOBS =====
+def fetch_jobs(role):
     url = f"https://api.adzuna.com/v1/api/jobs/{country}/search/1"
+
     params = {
         "app_id": APP_ID,
         "app_key": APP_KEY,
-        "what": what,
-        "results_per_page": 20
+        "what": role,
+        "results_per_page": 10
     }
-    return requests.get(url, params=params).json()
 
+    response = requests.get(url, params=params)
+    return response.json()
+
+# ===== EMAIL FUNCTION =====
 def send_email(body):
     msg = EmailMessage()
-    msg["Subject"] = "Daily Data Jobs"
+    msg["Subject"] = "Daily Tech Jobs Update 🚀"
     msg["From"] = EMAIL_FROM
     msg["To"] = EMAIL_TO
     msg.set_content(body)
@@ -37,10 +57,32 @@ def send_email(body):
         s.login(SMTP_USER, SMTP_PASS)
         s.send_message(msg)
 
-data = fetch_jobs()
+# ===== MAIN =====
+all_text = ""
+job_found = False
 
-text = ""
-for j in data.get("results", [])[:10]:
-    text += f"{j['title']} - {j['company']['display_name']}\n{j['redirect_url']}\n\n"
+today = datetime.date.today()
 
-send_email(text)
+for role in roles:
+    data = fetch_jobs(role)
+    jobs = data.get("results", [])
+
+    if jobs:
+        job_found = True
+        all_text += f"\n========== {role.upper()} ==========\n\n"
+
+        for j in jobs[:5]:
+            title = j.get("title", "N/A")
+            company = j.get("company", {}).get("display_name", "N/A")
+            url = j.get("redirect_url", "")
+
+            all_text += f"{title} — {company}\nApply: {url}\n\n"
+
+# ===== NO JOB MESSAGE =====
+if not job_found:
+    all_text = "No jobs found today 🙂\nTry again tomorrow!"
+
+# ===== SEND =====
+send_email(all_text)
+
+print("Email sent successfully!")
